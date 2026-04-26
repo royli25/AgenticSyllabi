@@ -3,6 +3,8 @@ import { useDropzone } from "react-dropzone";
 import { useNavigate } from "react-router-dom";
 import { Upload, FileText, Check, Loader2, Copy, ArrowLeft } from "lucide-react";
 import { uploadSyllabus } from "@/api/courses";
+import { useChatStore } from "@/store/useChatStore";
+import { usePlanStore } from "@/store/usePlanStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -10,6 +12,8 @@ import { cn } from "@/lib/utils";
 export default function ProfessorUpload() {
   const navigate = useNavigate();
   const setSession = useSessionStore((s) => s.setSession);
+  const resetChat = useChatStore((s) => s.reset);
+  const resetPlan = usePlanStore((s) => s.reset);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +36,8 @@ export default function ProfessorUpload() {
     setError(null);
     try {
       const data = await uploadSyllabus(file);
+      resetChat();
+      resetPlan();
       setSession(data.session_id, data.course_id, data.course_title, data.required_topics);
       setResult({ courseId: data.course_id, code: data.session_id });
     } catch {

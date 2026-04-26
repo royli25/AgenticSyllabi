@@ -2,12 +2,23 @@ import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Send, Sparkles, ArrowLeft, Loader2 } from "lucide-react";
 import { sendMessage } from "@/api/chat";
+import { getSessionSummary } from "@/api/courses";
 import { generatePlan } from "@/api/plan";
 import { useChatStore } from "@/store/useChatStore";
 import { useSessionStore } from "@/store/useSessionStore";
 import { usePlanStore } from "@/store/usePlanStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+
+const INITIAL_ASSISTANT_MESSAGE =
+  "Hey! I'm here to help personalize your course. What topic or field are you most passionate about outside of class?";
+
+function getWelcomeMessage(interestConfirmed: boolean, interestDomain?: string) {
+  if (interestConfirmed && interestDomain) {
+    return `Welcome back. Your course is already tuned toward ${interestDomain}. You can build your plan now or keep chatting if you want to refine it.`;
+  }
+  return INITIAL_ASSISTANT_MESSAGE;
+}
 
 function TypingIndicator() {
   return (
@@ -61,36 +72,83 @@ export default function StudentOnboarding() {
   const [input, setInput] = useState("");
   const [sessionCode, setSessionCode] = useState("");
   const [sessionReady, setSessionReady] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const { messages, isLoading, addMessage, setLoading } = useChatStore();
-  const { sessionId, courseId, setSession, setInterest, interestConfirmed, interestDomain } = useSessionStore();
-  const setStatus = usePlanStore((s) => s.setStatus);
+  const { messages, isLoading, addMessage, setLoading, reset: resetChat } = useChatStore();
+  const {
+    sessionId,
+    courseId,
+    setSession,
+    setInterest,
+    interestConfirmed,
+    interestDomain,
+    reset: resetSession,
+  } = useSessionStore();
+  const { setStatus, reset: resetPlan } = usePlanStore();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
 
   useEffect(() => {
-    if (sessionId) {
-      setSessionReady(true);
-      if (messages.length === 0) {
-        addMessage({
-          role: "assistant",
-          content: "Hey! I'm here to help personalize your course. What topic or field are you most passionate about outside of class?",
-        });
+    async function restoreSession() {
+      if (!sessionId) {
+        setSessionReady(false);
+        return;
+      }
+
+      setIsJoining(true);
+      setJoinError(null);
+      try {
+        const session = await getSessionSummary(sessionId);
+        setSession(session.session_id, session.course_id, session.course_title, session.required_topics);
+        if (session.interest_confirmed && session.interest_domain) {
+          setInterest(session.interest_domain, true);
+        }
+        setSessionReady(true);
+        if (messages.length === 0) {
+          addMessage({
+            role: "assistant",
+            content: getWelcomeMessage(session.interest_confirmed, session.interest_domain),
+          });
+        }
+      } catch {
+        resetChat();
+        resetPlan();
+        resetSession();
+        setSessionReady(false);
+      } finally {
+        setIsJoining(false);
       }
     }
+
+    void restoreSession();
   }, []);
 
-  function handleCodeSubmit() {
+  async function handleCodeSubmit() {
     if (!sessionCode.trim()) return;
-    setSession(sessionCode.trim(), sessionCode.trim(), "Course", []);
-    setSessionReady(true);
-    addMessage({
-      role: "assistant",
-      content: "Hey! I'm here to help personalize your course. What topic or field are you most passionate about outside of class?",
-    });
+    setIsJoining(true);
+    setJoinError(null);
+    try {
+      const session = await getSessionSummary(sessionCode.trim());
+      resetChat();
+      resetPlan();
+      setSession(session.session_id, session.course_id, session.course_title, session.required_topics);
+      if (session.interest_confirmed && session.interest_domain) {
+        setInterest(session.interest_domain, true);
+      }
+      setSessionReady(true);
+      addMessage({
+        role: "assistant",
+        content: getWelcomeMessage(session.interest_confirmed, session.interest_domain),
+      });
+    } catch {
+      setJoinError("We couldn't find that session code. Check it and try again.");
+    } finally {
+      setIsJoining(false);
+    }
   }
 
   async function handleSend() {
@@ -119,6 +177,19 @@ export default function StudentOnboarding() {
     navigate("/student/plan");
   }
 
+  if (sessionId && isJoining && !sessionReady) {
+    return (
+      <div className="app-page">
+        <div className="flex w-full flex-1 flex-col items-center justify-center px-6 py-10 sm:px-10">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Restoring your session...
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!sessionReady) {
     return (
       <div className="app-page">
@@ -141,17 +212,31 @@ export default function StudentOnboarding() {
             className="h-12 font-mono text-center tracking-widest text-base"
             placeholder="sess_xxxxxxxx"
             value={sessionCode}
-            onChange={(e) => setSessionCode(e.target.value)}
+            onChange={(e) => {
+              setSessionCode(e.target.value);
+              if (joinError) setJoinError(null);
+            }}
             onKeyDown={(e) => e.key === "Enter" && handleCodeSubmit()}
             autoFocus
+            disabled={isJoining}
           />
+          {joinError && (
+            <p className="mt-3 text-sm text-destructive animate-fade-in">{joinError}</p>
+          )}
           <Button
             onClick={handleCodeSubmit}
-            disabled={!sessionCode.trim()}
+            disabled={!sessionCode.trim() || isJoining}
             className="mt-3 w-full h-11"
             size="lg"
           >
-            Join Session
+            {isJoining ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Joining...
+              </>
+            ) : (
+              "Join Session"
+            )}
           </Button>
         </div>
         </div>

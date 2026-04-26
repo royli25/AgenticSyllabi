@@ -23,7 +23,14 @@ export const useSessionStore = create<SessionStore>()(
       interestDomain: null,
       interestConfirmed: false,
       setSession: (sessionId, courseId, courseTitle, requiredTopics) =>
-        set({ sessionId, courseId, courseTitle, requiredTopics }),
+        set({
+          sessionId,
+          courseId,
+          courseTitle,
+          requiredTopics,
+          interestDomain: null,
+          interestConfirmed: false,
+        }),
       setInterest: (interestDomain, interestConfirmed) =>
         set({ interestDomain, interestConfirmed }),
       reset: () =>

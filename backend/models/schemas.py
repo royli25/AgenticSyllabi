@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from enum import Enum
 
@@ -22,7 +22,7 @@ class Reading(BaseModel):
 class ProjectBrief(BaseModel):
     title: str
     description: str
-    deliverables: list[str]
+    deliverables: list[str] = Field(default_factory=list)
     estimated_hours: int
 
 
@@ -57,12 +57,14 @@ class SessionState(BaseModel):
     session_id: str
     course_id: Optional[str] = None
     course_title: Optional[str] = None
-    required_topics: list[str] = []
-    learning_outcomes: list[str] = []
+    required_topics: list[str] = Field(default_factory=list)
+    learning_outcomes: list[str] = Field(default_factory=list)
     interest_domain: Optional[str] = None
-    interest_keywords: list[str] = []
+    interest_keywords: list[str] = Field(default_factory=list)
     interest_confirmed: bool = False
-    chat_history: list[dict] = []
+    chat_history: list[dict] = Field(default_factory=list)
+    domain_summary: Optional[str] = None
+    topic_resources: dict[str, list[dict[str, str]]] = Field(default_factory=dict)
     plan_status: PlanStatus = PlanStatus.pending
     plan: Optional[CoursePlan] = None
 
@@ -72,6 +74,15 @@ class UploadSyllabusResponse(BaseModel):
     session_id: str
     course_title: str
     required_topics: list[str]
+
+
+class SessionSummaryResponse(BaseModel):
+    course_id: str
+    session_id: str
+    course_title: str
+    required_topics: list[str]
+    interest_confirmed: bool = False
+    interest_domain: Optional[str] = None
 
 
 class ChatResponse(BaseModel):

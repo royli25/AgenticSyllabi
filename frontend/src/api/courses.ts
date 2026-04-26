@@ -1,5 +1,5 @@
 import client from "./client";
-import type { UploadResponse } from "@/types/chat";
+import type { SessionSummaryResponse, UploadResponse } from "@/types/chat";
 
 export async function uploadSyllabus(file: File): Promise<UploadResponse> {
   const form = new FormData();
@@ -7,5 +7,10 @@ export async function uploadSyllabus(file: File): Promise<UploadResponse> {
   const { data } = await client.post<UploadResponse>("/courses/upload-syllabus", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });
+  return data;
+}
+
+export async function getSessionSummary(sessionId: string): Promise<SessionSummaryResponse> {
+  const { data } = await client.get<SessionSummaryResponse>(`/courses/session/${sessionId}`);
   return data;
 }
