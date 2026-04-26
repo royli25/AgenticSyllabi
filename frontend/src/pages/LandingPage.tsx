@@ -2,6 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Upload, School, X } from "lucide-react";
 import { useClassHistoryStore, type ClassRole, type PastClass } from "@/store/useClassHistoryStore";
 import { useSessionStore } from "@/store/useSessionStore";
+import { usePlanStore } from "@/store/usePlanStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -22,16 +23,14 @@ function roleLabel(role: ClassRole) {
 export default function LandingPage() {
   const navigate = useNavigate();
   const setSession = useSessionStore((s) => s.setSession);
+  const resetPlan = usePlanStore((s) => s.reset);
   const classes = useClassHistoryStore((s) => s.classes);
   const removeClass = useClassHistoryStore((s) => s.removeClass);
 
   function openClass(c: PastClass) {
+    resetPlan();
     setSession(c.sessionId, c.courseId, c.courseTitle, c.requiredTopics, c.hasSyllabus);
-    if (c.role === "professor") {
-      navigate("/professor/upload", { state: { showSessionCode: true } });
-    } else {
-      navigate("/student/onboarding");
-    }
+    navigate("/student/plan");
   }
 
   return (
