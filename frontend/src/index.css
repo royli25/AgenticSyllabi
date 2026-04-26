@@ -1,0 +1,61 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Light grey scale — high contrast, no low-contrast “grey on grey” body text */
+    --background: 220 8% 92%;
+    --foreground: 220 22% 10%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 22% 10%;
+    --muted: 220 6% 86%;
+    --muted-foreground: 220 9% 36%;
+    --border: 220 7% 72%;
+    --input: 220 6% 84%;
+    --ring: 220 20% 28%;
+    --primary: 220 22% 16%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 6% 90%;
+    --secondary-foreground: 220 22% 12%;
+    --accent: 220 6% 90%;
+    --accent-foreground: 220 22% 12%;
+    --destructive: 0 70% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    @apply min-h-dvh w-full;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+@layer utilities {
+  /** Full-viewport app column (use on route root + flex-1 on scroll regions) */
+  .app-page {
+    @apply flex min-h-dvh w-full flex-col;
+  }
+
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+  .animate-delay-500 { animation-delay: 500ms; }
+
+  .animation-fill-both { animation-fill-mode: both; }
+
+  .prose-neutral {
+    @apply prose prose-neutral;
+  }
+}
