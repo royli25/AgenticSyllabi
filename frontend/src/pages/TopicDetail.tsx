@@ -16,7 +16,7 @@ export default function TopicDetail() {
   if (!topic || !topic.content) {
     return (
       <div className="app-page">
-        <div className="flex flex-1 items-center justify-center px-6">
+        <div className="dashboard-content flex flex-1 items-center justify-center">
         <p className="text-sm font-medium text-foreground">Topic not found.</p>
         </div>
       </div>
@@ -27,7 +27,7 @@ export default function TopicDetail() {
 
   return (
     <div className="app-page">
-    <div className="mx-auto w-full max-w-4xl flex-1 px-6 py-8 sm:px-10 sm:py-10">
+    <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
       {/* Back */}
       <button
         onClick={() => navigate("/student/plan")}

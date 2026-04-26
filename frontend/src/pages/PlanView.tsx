@@ -1,14 +1,15 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, Clock, ArrowRight } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import { getPlanStatus, getPlan } from "@/api/plan";
 import { useSessionStore } from "@/store/useSessionStore";
 import { usePlanStore } from "@/store/usePlanStore";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { PlanStatus } from "@/types/plan";
+import type { PlanStatus, Topic } from "@/types/plan";
+
+const TOPICS_PER_UNIT = 5;
 
 const STATUS_LABELS: Record<PlanStatus, string> = {
   pending: "Starting up...",
@@ -28,102 +29,93 @@ const STATUS_PROGRESS: Record<PlanStatus, number> = {
   error: 0,
 };
 
+function groupTopicsIntoUnits(topics: Topic[]) {
+  const units: { title: string; topics: Topic[]; startIndex: number }[] = [];
+  for (let i = 0; i < topics.length; i += TOPICS_PER_UNIT) {
+    const chunk = topics.slice(i, i + TOPICS_PER_UNIT);
+    const unitNumber = units.length + 1;
+    units.push({
+      title: `Unit ${unitNumber}`,
+      topics: chunk,
+      startIndex: i,
+    });
+  }
+  return units;
+}
+
 function LoadingScreen({ status }: { status: PlanStatus }) {
   return (
     <div className="app-page">
       <div className="flex w-full flex-1 flex-col items-center justify-center px-6 py-10">
-      <div className="w-full max-w-md text-center animate-fade-in">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-muted border border-border mb-8">
-          <span className="text-2xl animate-pulse">✦</span>
-        </div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">Building your course</h2>
-        <p className="text-muted-foreground text-sm mb-10 leading-relaxed">
-          {STATUS_LABELS[status]}
-        </p>
+        <div className="w-full max-w-md animate-fade-in text-center">
+          <div className="mb-8 inline-flex h-14 w-14 items-center justify-center rounded-2xl border border-border bg-muted">
+            <span className="animate-pulse text-2xl">✦</span>
+          </div>
+          <h2 className="mb-2 text-2xl font-bold text-foreground">Building your course</h2>
+          <p className="mb-10 text-sm leading-relaxed text-muted-foreground">
+            {STATUS_LABELS[status]}
+          </p>
 
-        <div className="space-y-3">
-          <Progress value={STATUS_PROGRESS[status]} className="h-1" />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span>{STATUS_LABELS[status]}</span>
-            <span>{STATUS_PROGRESS[status]}%</span>
+          <div className="space-y-3">
+            <Progress value={STATUS_PROGRESS[status]} className="h-1" />
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{STATUS_LABELS[status]}</span>
+              <span>{STATUS_PROGRESS[status]}%</span>
+            </div>
+          </div>
+
+          <div className="mt-10 flex items-center justify-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <span
+                key={i}
+                className="h-1.5 w-1.5 animate-pulse rounded-full bg-muted-foreground/40"
+                style={{ animationDelay: `${i * 300}ms` }}
+              />
+            ))}
           </div>
         </div>
-
-        {/* Animated dots */}
-        <div className="flex items-center justify-center gap-1.5 mt-10">
-          {[0, 1, 2].map((i) => (
-            <span
-              key={i}
-              className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 animate-pulse"
-              style={{ animationDelay: `${i * 300}ms` }}
-            />
-          ))}
-        </div>
-      </div>
       </div>
     </div>
   );
 }
 
-function TopicCard({
+function ChapterRow({
   topic,
-  index,
-  onClick,
+  chapterNumber,
+  onOpen,
 }: {
-  topic: { topic_id: string; title: string; interest_angle: string; status: string; content?: { readings: unknown[]; project: { estimated_hours: number } } };
-  index: number;
-  onClick: () => void;
+  topic: Topic;
+  chapterNumber: number;
+  onOpen: () => void;
 }) {
   const isComplete = topic.status === "complete";
-
   return (
-    <button
-      onClick={onClick}
-      disabled={!isComplete}
-      className={cn(
-        "group relative w-full text-left rounded-xl border-2 border-border bg-card p-6",
-        "hover:border-foreground/20 hover:shadow-md hover:-translate-y-0.5",
-        "transition-all duration-300 ease-out",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:translate-y-0 disabled:hover:shadow-none disabled:hover:border-border",
-        "animate-fade-in-up animation-fill-both"
-      )}
-      style={{ animationDelay: `${Math.min(index * 60, 600)}ms` }}
-    >
-      <div className="flex items-start justify-between mb-4">
-        <span className="text-xs font-mono text-muted-foreground/60">
-          {String(index + 1).padStart(2, "0")}
-        </span>
-        {isComplete ? (
-          <Badge variant="success">Ready</Badge>
-        ) : (
-          <Badge variant="pending" className="animate-pulse">
-            Generating
-          </Badge>
+    <li>
+      <button
+        type="button"
+        onClick={onOpen}
+        disabled={!isComplete}
+        className={cn(
+          "flex w-full items-start gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm",
+          "transition-colors",
+          isComplete
+            ? "text-foreground hover:bg-muted/80"
+            : "cursor-not-allowed text-muted-foreground/70"
         )}
-      </div>
-
-      <h3 className="font-semibold text-foreground mb-2 leading-snug pr-4">{topic.title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed line-clamp-2">
-        {topic.interest_angle}
-      </p>
-
-      {topic.content && (
-        <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <BookOpen className="w-3 h-3" />
-            {topic.content.readings.length} readings
-          </span>
-          <span className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3" />
-            ~{topic.content.project.estimated_hours}h project
-          </span>
-        </div>
-      )}
-
-      <div className="absolute bottom-6 right-6 opacity-0 group-hover:opacity-100 translate-x-1 group-hover:translate-x-0 transition-all duration-200">
-        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-      </div>
-    </button>
+      >
+        <span className="w-6 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">
+          {String(chapterNumber).padStart(2, "0")}
+        </span>
+        <span className="min-w-0 flex-1 leading-snug">{topic.title}</span>
+        <span className="mt-0.5 shrink-0" aria-hidden>
+          {isComplete ? (
+            <Check className="h-3.5 w-3.5 text-emerald-600" strokeWidth={2.5} />
+          ) : (
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+          )}
+        </span>
+      </button>
+    </li>
   );
 }
 
@@ -156,57 +148,93 @@ export default function PlanView() {
     if (!sessionId) navigate("/");
   }, [sessionId]);
 
+  const units = useMemo(() => (plan ? groupTopicsIntoUnits(plan.topics) : []), [plan]);
+
   if (status !== "complete" || !plan) {
     return <LoadingScreen status={status} />;
   }
 
   const completedCount = plan.topics.filter((t) => t.status === "complete").length;
+  const total = plan.topics.length;
 
   return (
     <div className="app-page">
-      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-6 py-8 sm:px-10 sm:py-10">
-      {/* Header */}
-      <div className="mb-10 animate-slide-up animation-fill-both">
-        <p className="text-xs font-medium text-muted-foreground uppercase tracking-widest mb-3">
-          {plan.student_interest}
-        </p>
-        <h1 className="text-4xl font-bold tracking-tight text-foreground mb-3">
-          {plan.course_title}
-        </h1>
-        <p className="text-muted-foreground leading-relaxed max-w-xl text-sm">
-          {plan.domain_context}
-        </p>
-
-        <div className="flex flex-wrap gap-2 mt-5">
-          {plan.interest_keywords.map((kw) => (
-            <span
-              key={kw}
-              className="text-xs px-3 py-1 rounded-full bg-muted border border-border text-muted-foreground"
-            >
-              {kw}
-            </span>
-          ))}
-        </div>
-
-        <div className="mt-6 flex items-center gap-3 text-sm text-muted-foreground">
-          <span>{completedCount} of {plan.topics.length} topics ready</span>
-          <div className="flex-1 max-w-32">
-            <Progress value={(completedCount / plan.topics.length) * 100} />
+      <div className="flex w-full min-h-0 flex-1 flex-col md:flex-row">
+        {/* Left: units & chapters (syllabus nav) — Neon-style narrow rail */}
+        <aside
+          className="flex max-h-[min(22rem,45vh)] w-full min-h-0 shrink-0 flex-col overflow-hidden border-b border-border bg-muted/25 md:sticky md:top-0 md:max-h-dvh md:w-72 md:border-b-0 md:border-r"
+          aria-label="Course units and chapters"
+        >
+          <div className="shrink-0 border-b border-border px-4 py-3.5">
+            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              Course structure
+            </p>
+            <p className="mt-0.5 truncate text-sm font-semibold text-foreground">
+              {plan.course_title}
+            </p>
           </div>
-        </div>
-      </div>
+          <nav className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-2">
+            {units.map((unit) => (
+              <div key={unit.title} className="px-2 pb-3 last:pb-2">
+                <h3 className="mb-1.5 px-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                  {unit.title}
+                </h3>
+                <ul className="space-y-0.5">
+                  {unit.topics.map((topic, j) => {
+                    const n = unit.startIndex + j + 1;
+                    return (
+                      <ChapterRow
+                        key={topic.topic_id}
+                        topic={topic}
+                        chapterNumber={n}
+                        onOpen={() => navigate(`/student/plan/topic/${topic.topic_id}`)}
+                      />
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </nav>
+        </aside>
 
-      {/* Topics grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plan.topics.map((topic, i) => (
-          <TopicCard
-            key={topic.topic_id}
-            topic={topic}
-            index={i}
-            onClick={() => navigate(`/student/plan/topic/${topic.topic_id}`)}
-          />
-        ))}
-      </div>
+        {/* Right: class landing & intro */}
+        <main className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 py-8 sm:px-8 sm:py-10">
+            <div className="rounded-xl border-2 border-border bg-card p-6 shadow-sm sm:p-8">
+              <p className="mb-2 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+                {plan.student_interest}
+              </p>
+              <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
+                {plan.course_title}
+              </h1>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
+                {plan.domain_context}
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-2">
+                {plan.interest_keywords.map((kw) => (
+                  <span
+                    key={kw}
+                    className="rounded-full border border-border bg-muted/60 px-3 py-1 text-xs text-muted-foreground"
+                  >
+                    {kw}
+                  </span>
+                ))}
+              </div>
+
+              <div className="mt-8 border-t border-border pt-6">
+                <div className="mb-2 flex items-center justify-between gap-3 text-sm text-muted-foreground">
+                  <span>
+                    {completedCount} of {total} topics ready
+                  </span>
+                </div>
+                <div className="max-w-sm">
+                  <Progress value={total > 0 ? (completedCount / total) * 100 : 0} className="h-1.5" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     </div>
   );

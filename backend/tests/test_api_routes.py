@@ -42,12 +42,54 @@ class ApiRouteTests(unittest.TestCase):
                 "required_topics": ["Vectors", "Matrices"],
                 "interest_confirmed": True,
                 "interest_domain": "music production",
+                "has_syllabus": False,
             },
         )
 
     def test_get_session_summary_returns_404_for_unknown_session(self):
         response = self.client.get("/api/courses/session/sess_missing")
         self.assertEqual(response.status_code, 404)
+
+    def test_get_session_summary_includes_has_syllabus_true_when_file_stored(self):
+        state_store.create_session("sess_pdf")
+        state_store.update_session(
+            "sess_pdf",
+            course_id="course_x",
+            course_title="Test Course",
+            required_topics=["A"],
+            syllabus_bytes=b"%PDF-1.4",
+            syllabus_mime="application/pdf",
+        )
+        r = self.client.get("/api/courses/session/sess_pdf")
+        self.assertEqual(r.status_code, 200)
+        self.assertTrue(r.json()["has_syllabus"])
+
+    def test_get_session_syllabus_returns_bytes_and_inline_disposition(self):
+        state_store.create_session("sess_syl")
+        state_store.update_session(
+            "sess_syl",
+            course_id="course_y",
+            course_title="Y",
+            required_topics=[],
+            syllabus_bytes=b"hello",
+            syllabus_mime="text/plain",
+        )
+        r = self.client.get("/api/courses/session/sess_syl/syllabus")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.content, b"hello")
+        self.assertEqual(r.headers.get("content-type", "").split(";")[0], "text/plain")
+        self.assertIn('filename="syllabus.txt"', r.headers.get("content-disposition", ""))
+
+    def test_get_session_syllabus_returns_404_when_no_file(self):
+        state_store.create_session("sess_nofile")
+        state_store.update_session(
+            "sess_nofile",
+            course_id="course_z",
+            course_title="Z",
+            required_topics=[],
+        )
+        r = self.client.get("/api/courses/session/sess_nofile/syllabus")
+        self.assertEqual(r.status_code, 404)
 
     def test_chat_message_route_returns_agent_reply(self):
         state_store.create_session("sess_chat")
@@ -143,6 +185,8 @@ class ApiRouteTests(unittest.TestCase):
         self.assertEqual(data["required_topics"], ["SQL", "Normalization"])
         session = state_store.require_session(data["session_id"])
         self.assertEqual(session.course_id, data["course_id"])
+        self.assertEqual(session.syllabus_bytes, b"Course outline")
+        self.assertEqual(session.syllabus_mime, "text/plain")
 
 
 if __name__ == "__main__":

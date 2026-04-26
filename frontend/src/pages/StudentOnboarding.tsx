@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Send, Sparkles, ArrowLeft, Loader2 } from "lucide-react";
+import { Send, Sparkles, ArrowLeft, Loader2, FileText, ExternalLink } from "lucide-react";
 import { sendMessage } from "@/api/chat";
 import { getSessionSummary } from "@/api/courses";
 import { generatePlan } from "@/api/plan";
 import { useChatStore } from "@/store/useChatStore";
 import { useSessionStore } from "@/store/useSessionStore";
+import { useClassHistoryStore } from "@/store/useClassHistoryStore";
 import { usePlanStore } from "@/store/usePlanStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -80,6 +81,9 @@ export default function StudentOnboarding() {
   const {
     sessionId,
     courseId,
+    courseTitle,
+    requiredTopics,
+    hasSyllabus,
     setSession,
     setInterest,
     interestConfirmed,
@@ -87,6 +91,27 @@ export default function StudentOnboarding() {
     reset: resetSession,
   } = useSessionStore();
   const { setStatus, reset: resetPlan } = usePlanStore();
+  const addOrUpdateClass = useClassHistoryStore((s) => s.addOrUpdateClass);
+  const touchClass = useClassHistoryStore((s) => s.touchClass);
+
+  function recordStudentClass(
+    session: {
+      session_id: string;
+      course_id: string;
+      course_title: string;
+      required_topics: string[];
+      has_syllabus: boolean;
+    }
+  ) {
+    addOrUpdateClass({
+      sessionId: session.session_id,
+      courseId: session.course_id,
+      courseTitle: session.course_title,
+      requiredTopics: session.required_topics,
+      hasSyllabus: session.has_syllabus,
+      role: "student",
+    });
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -103,7 +128,14 @@ export default function StudentOnboarding() {
       setJoinError(null);
       try {
         const session = await getSessionSummary(sessionId);
-        setSession(session.session_id, session.course_id, session.course_title, session.required_topics);
+        setSession(
+          session.session_id,
+          session.course_id,
+          session.course_title,
+          session.required_topics,
+          session.has_syllabus
+        );
+        touchClass(session.session_id);
         if (session.interest_confirmed && session.interest_domain) {
           setInterest(session.interest_domain, true);
         }
@@ -135,7 +167,14 @@ export default function StudentOnboarding() {
       const session = await getSessionSummary(sessionCode.trim());
       resetChat();
       resetPlan();
-      setSession(session.session_id, session.course_id, session.course_title, session.required_topics);
+      setSession(
+        session.session_id,
+        session.course_id,
+        session.course_title,
+        session.required_topics,
+        session.has_syllabus
+      );
+      recordStudentClass(session);
       if (session.interest_confirmed && session.interest_domain) {
         setInterest(session.interest_domain, true);
       }
@@ -177,10 +216,27 @@ export default function StudentOnboarding() {
     navigate("/student/plan");
   }
 
+  const syllabusFrameSrc = useMemo(
+    () =>
+      hasSyllabus && sessionId
+        ? `/api/courses/session/${encodeURIComponent(sessionId)}/syllabus`
+        : null,
+    [hasSyllabus, sessionId]
+  );
+
+  /** Hints to Chrome/Edge PDF to hide toolbars and thumbnail pane (scrolling page only). */
+  const syllabusEmbedSrc = useMemo(
+    () =>
+      syllabusFrameSrc
+        ? `${syllabusFrameSrc}#toolbar=0&navpanes=0&view=FitH`
+        : null,
+    [syllabusFrameSrc]
+  );
+
   if (sessionId && isJoining && !sessionReady) {
     return (
       <div className="app-page">
-        <div className="flex w-full flex-1 flex-col items-center justify-center px-6 py-10 sm:px-10">
+        <div className="dashboard-content flex w-full flex-1 flex-col items-center justify-center py-8 sm:py-10">
           <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <Loader2 className="w-4 h-4 animate-spin" />
             Restoring your session...
@@ -193,7 +249,7 @@ export default function StudentOnboarding() {
   if (!sessionReady) {
     return (
       <div className="app-page">
-        <div className="flex w-full flex-1 flex-col justify-center px-6 py-10 sm:px-10">
+        <div className="dashboard-content flex w-full flex-1 flex-col justify-center py-8 sm:py-10">
         <div className="mx-auto w-full max-w-md animate-slide-up animation-fill-both">
           <button
             onClick={() => navigate("/")}
@@ -246,67 +302,121 @@ export default function StudentOnboarding() {
 
   return (
     <div className="app-page">
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-4 sm:px-6">
-      {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b-2 border-border py-4 animate-fade-in">
-        <div>
-          <h1 className="text-sm font-semibold text-foreground">Personalize Your Course</h1>
-          <p className="text-xs text-muted-foreground">Chat with the AI to set your learning direction</p>
-        </div>
-        {interestConfirmed && (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted border border-border text-xs">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span className="text-muted-foreground capitalize">{interestDomain}</span>
+      <div className="flex min-h-0 w-full flex-1 flex-col">
+        <div className="grid min-h-0 w-full flex-1 grid-cols-1 divide-y divide-border overflow-hidden bg-background lg:grid-cols-2 lg:divide-x lg:divide-y-0">
+          {/* Left: syllabus (PDF or topic list) — full column, no card shell */}
+          <aside className="flex min-h-0 flex-col max-lg:min-h-[40vh] bg-background lg:min-h-0">
+            <div className="relative min-h-0 flex-1 bg-muted/20">
+              {syllabusEmbedSrc ? (
+                <>
+                  <iframe
+                    title="Course syllabus"
+                    src={syllabusEmbedSrc}
+                    className="block h-full w-full min-h-[50vh] border-0 lg:min-h-0"
+                  />
+                  {syllabusFrameSrc && (
+                    <a
+                      href={syllabusFrameSrc}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="absolute right-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-border/80 bg-background/95 px-2 py-1 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-background"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open
+                    </a>
+                  )}
+                </>
+              ) : (
+                <div className="h-full overflow-y-auto p-4 sm:px-6 sm:py-5 lg:pl-6 lg:pr-4">
+                  <p className="mb-1 text-sm font-medium text-foreground">
+                    {courseTitle || "Course topics"}
+                  </p>
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    No syllabus file for this session. Key topics from your course:
+                  </p>
+                  <ul className="space-y-2.5">
+                    {requiredTopics.length > 0 ? (
+                      requiredTopics.map((t) => (
+                        <li
+                          key={t}
+                          className="flex gap-2.5 text-sm text-foreground"
+                        >
+                          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                          <span>{t}</span>
+                        </li>
+                      ))
+                    ) : (
+                      <li className="text-sm text-muted-foreground">No topics listed yet.</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </aside>
+
+          {/* Right: chat */}
+          <div className="flex min-h-0 flex-col max-lg:min-h-[50vh] bg-background lg:min-h-0">
+            <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+              <div className="min-w-0">
+                <p className="truncate text-xs text-muted-foreground">
+                  {courseTitle || "Course"}
+                </p>
+                <h1 className="text-sm font-semibold text-foreground">Personalize your course</h1>
+                <p className="text-xs text-muted-foreground">
+                  Chat to tell the AI what you care about outside class
+                </p>
+              </div>
+              {interestConfirmed && (
+                <div className="flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1.5 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  <span className="text-muted-foreground capitalize">{interestDomain}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-6">
+              {messages.map((msg, i) => (
+                <Message key={i} role={msg.role} content={msg.content} index={i} />
+              ))}
+              {isLoading && <TypingIndicator />}
+              <div ref={bottomRef} />
+            </div>
+
+            {interestConfirmed && (
+              <div className="mx-4 mb-2 flex shrink-0 items-center justify-between gap-2 rounded-lg border-2 border-border bg-muted/30 p-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Interest</p>
+                  <p className="text-sm font-semibold capitalize text-foreground">
+                    {interestDomain}
+                  </p>
+                </div>
+                <Button onClick={handleGenerate} size="sm" className="shrink-0 gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" />
+                  Build plan
+                </Button>
+              </div>
+            )}
+
+            <div className="flex shrink-0 gap-2 border-t border-border p-4 sm:px-6">
+              <Input
+                className="h-11 flex-1"
+                placeholder="Type a message..."
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+                disabled={isLoading}
+              />
+              <Button
+                onClick={handleSend}
+                disabled={!input.trim() || isLoading}
+                size="icon"
+                className="h-11 w-11 shrink-0"
+              >
+                {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
-        )}
-      </div>
-
-      {/* Messages */}
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto py-6">
-        {messages.map((msg, i) => (
-          <Message key={i} role={msg.role} content={msg.content} index={i} />
-        ))}
-        {isLoading && <TypingIndicator />}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* Interest confirmed banner */}
-      {interestConfirmed && (
-        <div className="mx-0 mb-3 flex shrink-0 items-center justify-between rounded-xl border-2 border-border bg-card p-4 shadow-sm animate-slide-up">
-          <div>
-            <p className="text-xs text-muted-foreground mb-0.5">Interest confirmed</p>
-            <p className="text-sm font-semibold text-foreground capitalize">{interestDomain}</p>
-          </div>
-          <Button onClick={handleGenerate} size="sm" className="gap-1.5">
-            <Sparkles className="w-3.5 h-3.5" />
-            Build My Plan
-          </Button>
         </div>
-      )}
-
-      {/* Input */}
-      <div className="flex shrink-0 gap-2 pb-6 pt-2">
-        <Input
-          className="flex-1 h-11"
-          placeholder="Type a message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-          disabled={isLoading}
-        />
-        <Button
-          onClick={handleSend}
-          disabled={!input.trim() || isLoading}
-          size="icon"
-          className="w-11 h-11 flex-shrink-0"
-        >
-          {isLoading ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </Button>
-      </div>
       </div>
     </div>
   );

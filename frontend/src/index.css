@@ -4,22 +4,23 @@
 
 @layer base {
   :root {
-    /* Light grey scale — high contrast, no low-contrast “grey on grey” body text */
-    --background: 220 8% 92%;
-    --foreground: 220 22% 10%;
+    /* White dashboard canvas + strong contrast (dark type, clear borders) */
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
     --card: 0 0% 100%;
-    --card-foreground: 220 22% 10%;
-    --muted: 220 6% 86%;
-    --muted-foreground: 220 9% 36%;
-    --border: 220 7% 72%;
-    --input: 220 6% 84%;
-    --ring: 220 20% 28%;
-    --primary: 220 22% 16%;
+    --card-foreground: 222 47% 11%;
+    /* Subtle fill for inputs / chips (not the page background) */
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 9% 34%;
+    --border: 220 13% 84%;
+    --input: 220 14% 92%;
+    --ring: 222 32% 28%;
+    --primary: 222 40% 18%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 220 6% 90%;
-    --secondary-foreground: 220 22% 12%;
-    --accent: 220 6% 90%;
-    --accent-foreground: 220 22% 12%;
+    --secondary: 220 14% 95%;
+    --secondary-foreground: 222 40% 15%;
+    --accent: 220 14% 95%;
+    --accent-foreground: 222 40% 15%;
     --destructive: 0 70% 42%;
     --destructive-foreground: 0 0% 100%;
     --radius: 0.75rem;
@@ -44,7 +45,18 @@
 @layer utilities {
   /** Full-viewport app column (use on route root + flex-1 on scroll regions) */
   .app-page {
-    @apply flex min-h-dvh w-full flex-col;
+    /* Fills main below the app header (min-h-0 allows inner scroll) */
+    @apply flex w-full min-h-0 flex-1 flex-col;
+  }
+
+  /** Centered content column for dashboard routes */
+  .dashboard-content {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  /** Bordered card surface (panels on white) */
+  .dashboard-panel {
+    @apply rounded-xl border-2 border-border bg-card text-card-foreground shadow-sm;
   }
 
   .animate-delay-100 { animation-delay: 100ms; }

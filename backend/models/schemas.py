@@ -57,6 +57,9 @@ class SessionState(BaseModel):
     session_id: str
     course_id: Optional[str] = None
     course_title: Optional[str] = None
+    # Original file from professor upload (served to students for preview)
+    syllabus_bytes: Optional[bytes] = None
+    syllabus_mime: Optional[str] = None
     required_topics: list[str] = Field(default_factory=list)
     learning_outcomes: list[str] = Field(default_factory=list)
     interest_domain: Optional[str] = None
@@ -83,6 +86,7 @@ class SessionSummaryResponse(BaseModel):
     required_topics: list[str]
     interest_confirmed: bool = False
     interest_domain: Optional[str] = None
+    has_syllabus: bool = False
 
 
 class ChatResponse(BaseModel):

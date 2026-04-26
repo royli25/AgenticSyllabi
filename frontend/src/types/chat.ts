@@ -24,4 +24,5 @@ export interface SessionSummaryResponse {
   required_topics: string[];
   interest_confirmed: boolean;
   interest_domain?: string;
+  has_syllabus: boolean;
 }

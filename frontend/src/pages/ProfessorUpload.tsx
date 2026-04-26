@@ -1,17 +1,21 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Upload, FileText, Check, Loader2, Copy, ArrowLeft } from "lucide-react";
 import { uploadSyllabus } from "@/api/courses";
 import { useChatStore } from "@/store/useChatStore";
 import { usePlanStore } from "@/store/usePlanStore";
 import { useSessionStore } from "@/store/useSessionStore";
+import { useClassHistoryStore } from "@/store/useClassHistoryStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export default function ProfessorUpload() {
   const navigate = useNavigate();
+  const location = useLocation();
   const setSession = useSessionStore((s) => s.setSession);
+  const addOrUpdateClass = useClassHistoryStore((s) => s.addOrUpdateClass);
+  const touchClass = useClassHistoryStore((s) => s.touchClass);
   const resetChat = useChatStore((s) => s.reset);
   const resetPlan = usePlanStore((s) => s.reset);
   const [file, setFile] = useState<File | null>(null);
@@ -19,6 +23,16 @@ export default function ProfessorUpload() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{ courseId: string; code: string } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const showCode = (location.state as { showSessionCode?: boolean } | null)?.showSessionCode;
+    if (!showCode) return;
+    const s = useSessionStore.getState();
+    if (s.sessionId && s.courseId) {
+      setResult({ courseId: s.courseId, code: s.sessionId });
+      touchClass(s.sessionId);
+    }
+  }, [location.state, touchClass]);
 
   const onDrop = useCallback((accepted: File[]) => {
     if (accepted[0]) setFile(accepted[0]);
@@ -38,7 +52,15 @@ export default function ProfessorUpload() {
       const data = await uploadSyllabus(file);
       resetChat();
       resetPlan();
-      setSession(data.session_id, data.course_id, data.course_title, data.required_topics);
+      setSession(data.session_id, data.course_id, data.course_title, data.required_topics, true);
+      addOrUpdateClass({
+        sessionId: data.session_id,
+        courseId: data.course_id,
+        courseTitle: data.course_title,
+        requiredTopics: data.required_topics,
+        hasSyllabus: true,
+        role: "professor",
+      });
       setResult({ courseId: data.course_id, code: data.session_id });
     } catch {
       setError("Failed to process syllabus. Please try again.");
@@ -56,7 +78,7 @@ export default function ProfessorUpload() {
 
   return (
     <div className="app-page">
-      <div className="flex w-full flex-1 flex-col justify-center px-6 py-10 sm:px-10">
+      <div className="dashboard-content flex w-full flex-1 flex-col justify-center py-8 sm:py-10">
       <div className="mx-auto w-full max-w-lg animate-slide-up animation-fill-both">
         {/* Back */}
         <button

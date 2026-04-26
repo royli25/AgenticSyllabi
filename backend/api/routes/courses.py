@@ -1,4 +1,5 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import Response
 from backend.agents import workflows
 from backend.models.schemas import SessionSummaryResponse, UploadSyllabusResponse
 from backend.services import pdf_parser, state_store
@@ -24,7 +25,12 @@ async def upload_syllabus(file: UploadFile = File(...)):
     course_id = f"course_{uuid.uuid4().hex[:8]}"
     session_id = f"sess_{uuid.uuid4().hex[:8]}"
     state_store.create_session(session_id)
-    state_store.update_session(session_id, course_id=course_id)
+    state_store.update_session(
+        session_id,
+        course_id=course_id,
+        syllabus_bytes=raw_bytes,
+        syllabus_mime=file.content_type,
+    )
     parsed = await workflows.parse_syllabus_text(session_id, raw_text)
 
     return UploadSyllabusResponse(
@@ -48,4 +54,25 @@ async def get_session_summary(session_id: str):
         required_topics=session.required_topics,
         interest_confirmed=session.interest_confirmed,
         interest_domain=session.interest_domain,
+        has_syllabus=bool(session.syllabus_bytes),
+    )
+
+
+@router.get("/session/{session_id}/syllabus")
+async def get_session_syllabus(session_id: str):
+    """Stream the original syllabus file for the student PDF panel."""
+    session = state_store.get_session(session_id)
+    if not session or not session.syllabus_bytes:
+        raise HTTPException(404, "Syllabus not found")
+
+    media = session.syllabus_mime or "application/octet-stream"
+    if media == "text/plain":
+        filename = "syllabus.txt"
+    else:
+        filename = "syllabus.pdf"
+
+    return Response(
+        content=session.syllabus_bytes,
+        media_type=media,
+        headers={"Content-Disposition": f'inline; filename="{filename}"'},
     )

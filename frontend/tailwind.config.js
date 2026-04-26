@@ -41,12 +41,11 @@ export default {
       },
       fontFamily: {
         sans: [
+          '"DM Sans"',
+          "ui-sans-serif",
+          "system-ui",
           "-apple-system",
           "BlinkMacSystemFont",
-          '"Segoe UI"',
-          "Roboto",
-          '"Helvetica Neue"',
-          "Arial",
           "sans-serif",
         ],
       },
